@@ -8,9 +8,10 @@ from telegram.ext import (
     CommandHandler, CallbackQueryHandler,
 )
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN") or '8262341478:AAHi31NDnJKOrzTQaaSBGWorxVguSt8Bn0c'
+# >>> DO NOT PUT YOUR TOKEN HERE <<<
+BOT_TOKEN = os.environ.get("BOT_TOKEN")   # will be provided by Vercel env var, safe!
 ITEMS_JSON_URL = "https://ullas65.github.io/UptoOB50Data/OB50Items.json"
-YOUR_USER_ID = 933925222  # Only you in private chat
+YOUR_USER_ID = 933925222
 
 items_data = []
 BATCH_SIZE = 10
@@ -184,7 +185,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 from fastapi import FastAPI, Request
 
 app = FastAPI()
-telegram_app: Application = None
+telegram_app = None
 
 @app.on_event("startup")
 async def on_startup():
@@ -202,3 +203,4 @@ async def webhook(req: Request):
     update = Update.de_json(data, telegram_app.bot)
     await telegram_app.process_update(update)
     return {"ok": True}
+            
