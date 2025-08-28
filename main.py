@@ -1,15 +1,13 @@
 import os
 import requests
 import io
-from fastapi import FastAPI, Request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application, ApplicationBuilder, ContextTypes,
+    ApplicationBuilder, ContextTypes,
     CommandHandler, CallbackQueryHandler,
 )
 
-# >>> DO NOT PUT YOUR TOKEN HERE <<<
-BOT_TOKEN = os.environ.get("BOT_TOKEN")   # will be provided by Vercel env var, safe!
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 ITEMS_JSON_URL = "https://ullas65.github.io/UptoOB50Data/OB50Items.json"
 YOUR_USER_ID = 933925222
 
@@ -18,21 +16,22 @@ BATCH_SIZE = 10
 
 def load_items_data():
     global items_data
-    resp = requests.get(ITEMS_JSON_URL)
-    if resp.status_code == 200:
-        items_data = resp.json()
-    else:
+    try:
+        resp = requests.get(ITEMS_JSON_URL)
+        if resp.status_code == 200:
+            items_data = resp.json()
+        else:
+            items_data = []
+    except Exception as e:
         items_data = []
+        print("Error loading data:", e)
 
 def is_allowed(update: Update):
     chat = update.effective_chat
-    # Allow all channels
     if chat.type == "channel":
         return True
-    # Allow all groups/supergroups
     if chat.type in ("group", "supergroup"):
         return True
-    # Allow ONLY your private chat
     if chat.type == "private" and chat.id == YOUR_USER_ID:
         return True
     return False
@@ -121,8 +120,9 @@ async def send_item_document_with_caption(context, chat_id, item, img_mode):
         bio.name = f"{item.get('Id')}.png"
         bio.seek(0)
         await context.bot.send_document(chat_id=chat_id, document=bio, caption=caption)
-    except Exception:
+    except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=caption)
+        print("Error sending image:", e)
 
 async def send_unknown_id_image_only(context, chat_id, unknown_id, img_mode):
     credits = "\n— bot by @RockingGamerz65"
@@ -139,8 +139,9 @@ async def send_unknown_id_image_only(context, chat_id, unknown_id, img_mode):
         bio.name = f"{unknown_id}.png"
         bio.seek(0)
         await context.bot.send_document(chat_id=chat_id, document=bio, caption=caption)
-    except Exception:
+    except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=caption + "\nNo image preview available.")
+        print("Error sending unknown id image:", e)
 
 async def send_batch(context, chat_id, items, offset, img_mode):
     for item in items[offset:offset+BATCH_SIZE]:
@@ -177,30 +178,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         try:
             await query.message.delete()
-        except Exception:
-            pass
+        except Exception as e:
+            print("Could not delete message:", e)
         await send_batch(context, query.message.chat_id, matched_items, offset, img_mode)
 
-# --- FASTAPI APP FOR VERCEL ---
-from fastapi import FastAPI, Request
-
-app = FastAPI()
-telegram_app = None
-
-@app.on_event("startup")
-async def on_startup():
+if __name__ == "__main__":
+    print("Bot starting...")
     load_items_data()
-    global telegram_app
-    telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
-    telegram_app.add_handler(CommandHandler('start', start))
-    telegram_app.add_handler(CommandHandler('id', id_command))
-    telegram_app.add_handler(CallbackQueryHandler(handle_selection, pattern="^imgsrc_"))
-    telegram_app.add_handler(CallbackQueryHandler(button_handler, pattern="^next#"))
-
-@app.post("/")
-async def webhook(req: Request):
-    data = await req.json()
-    update = Update.de_json(data, telegram_app.bot)
-    await telegram_app.process_update(update)
-    return {"ok": True}
-            
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler('start', start))
+    app.add_handler(CommandHandler('id', id_command))
+    app.add_handler(CallbackQueryHandler(handle_selection, pattern="^imgsrc_"))
+    app.add_handler(CallbackQueryHandler(button_handler, pattern="^next#"))
+    app.run_polling()
+    
